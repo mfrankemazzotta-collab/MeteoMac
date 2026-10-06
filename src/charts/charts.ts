@@ -1,5 +1,5 @@
 import * as Plot from "@observablehq/plot";
-import type { DayRow } from "../data/year";
+import type { DayRow, YearAnalysis } from "../data/analysis";
 
 /** Plot no entiende `var(--x)` como color, así que leemos los tokens CSS al dibujar. */
 function token(name: string): string {
@@ -9,8 +9,11 @@ function token(name: string): string {
 const monthFmt = new Intl.DateTimeFormat("es-AR", { month: "short", timeZone: "UTC" });
 const dayFmt = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short", timeZone: "UTC" });
 const axisNum = (v: number) => v.toLocaleString("es-AR");
-const num = (v: number | null, digits = 1) =>
-  v == null ? "s/d" : v.toLocaleString("es-AR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+export const num = (v: number | null, digits = 1) =>
+  v == null || !Number.isFinite(v)
+    ? "s/d"
+    : v.toLocaleString("es-AR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+const pct = (v: number | null) => (v == null ? "s/d" : `p${Math.round(v)}`);
 
 /**
  * Parte la serie en el tramo consolidado y el preliminar. El tramo preliminar arranca en el
@@ -23,22 +26,23 @@ function splitPreliminary(rows: DayRow[]) {
 }
 
 interface ChartOptions {
-  rows: DayRow[];
-  year: number;
+  analysis: YearAnalysis;
   width: number;
 }
 
-function baseOptions({ year, width }: ChartOptions) {
+function baseOptions({ analysis, width }: ChartOptions) {
+  const first = analysis.band[0].date;
+  const last = analysis.band[analysis.band.length - 1].date;
   return {
     width,
-    height: Math.round(Math.min(320, Math.max(220, width * 0.55))),
+    height: Math.round(Math.min(340, Math.max(240, width * 0.58))),
     marginLeft: 44,
     marginRight: 12,
     marginTop: 26,
     style: { fontSize: "12px", color: token("--text-secondary"), background: "transparent" },
     x: {
       type: "utc" as const,
-      domain: [new Date(Date.UTC(year, 0, 1)), new Date(Date.UTC(year, 11, 31))],
+      domain: [first, last],
       ticks: width < 500 ? "3 months" : "month",
       tickFormat: (d: Date) => monthFmt.format(d).replace(".", ""),
       label: null,
@@ -46,46 +50,74 @@ function baseOptions({ year, width }: ChartOptions) {
   };
 }
 
-/** Marcas comunes: línea consolidada, línea preliminar punteada y capa de hover. */
-function lineMarks(rows: DayRow[], y: "temp" | "precipAcc", color: string, tipTitle: (r: DayRow) => string) {
+/** Línea del año (consolidada + preliminar punteada) y capa de hover. */
+function yearLine(
+  rows: DayRow[],
+  y: "temp" | "precipAcc",
+  color: string,
+  width: number,
+  tipTitle: (r: DayRow) => string,
+) {
   const { solid, dashed } = splitPreliminary(rows);
-  const surface = token("--surface-1");
   return [
-    Plot.lineY(solid, { x: "date", y, stroke: color, strokeWidth: 2 }),
-    Plot.lineY(dashed, { x: "date", y, stroke: color, strokeWidth: 2, strokeDasharray: "4 3" }),
+    Plot.lineY(solid, { x: "date", y, stroke: color, strokeWidth: width }),
+    Plot.lineY(dashed, { x: "date", y, stroke: color, strokeWidth: width, strokeDasharray: "4 3" }),
     Plot.ruleX(rows, Plot.pointerX({ x: "date", stroke: token("--text-muted"), strokeWidth: 1 })),
-    Plot.dot(rows, Plot.pointerX({ x: "date", y, r: 4, fill: color, stroke: surface, strokeWidth: 2 })),
-    Plot.tip(rows, Plot.pointerX({ x: "date", y, title: tipTitle, fontSize: 12 })),
+    Plot.dot(rows, Plot.pointerX({ x: "date", y, r: 4, fill: color, stroke: token("--surface-1"), strokeWidth: 2 })),
+    Plot.tip(rows, Plot.pointerX({ x: "date", y, title: tipTitle, fontSize: 12, lineWidth: 40 })),
   ];
 }
 
 const prelimNote = (r: DayRow) => (r.preliminary ? "\nDato preliminar (pronóstico)" : "");
 
 export function temperatureChart(opts: ChartOptions) {
-  const color = token("--series-temp");
+  const { rows, band } = opts.analysis;
+  const bandByIso = new Map(band.map((b) => [b.iso, b]));
+  const above = rows.filter((r) => r.tempOutside === "above");
+  const below = rows.filter((r) => r.tempOutside === "below");
+  const surface = token("--surface-1");
   return Plot.plot({
     ...baseOptions(opts),
     y: { label: "°C", grid: true, nice: true, tickFormat: axisNum },
     marks: [
+      Plot.areaY(band, { x: "date", y1: "t10", y2: "t90", fill: token("--band-temp"), curve: "monotone-x" }),
       Plot.ruleY([0], { stroke: token("--text-muted"), strokeOpacity: 0.5 }),
-      ...lineMarks(opts.rows, "temp", color, (r) => `${dayFmt.format(r.date)}\nT media: ${num(r.temp)} °C${prelimNote(r)}`),
+      Plot.lineY(band, { x: "date", y: "t50", stroke: token("--text-muted"), strokeWidth: 1.5, curve: "monotone-x" }),
+      ...yearLine(rows, "temp", token("--series-line"), 1.25, (r) => {
+        const b = bandByIso.get(r.iso);
+        const where = r.tempOutside === "above" ? " ▲ más cálido que el p90" : r.tempOutside === "below" ? " ▼ más frío que el p10" : "";
+        return (
+          `${dayFmt.format(r.date)}\nT media: ${num(r.temp)} °C (${pct(r.tempPct)})${where}` +
+          `\nNormal: ${num(b?.t50 ?? null)} °C (p10–p90: ${num(b?.t10 ?? null)} a ${num(b?.t90 ?? null)})${prelimNote(r)}`
+        );
+      }),
+      // Días fuera de la banda: color + forma (▲ arriba, ▼ abajo), para no depender solo del color.
+      Plot.dot(above, { x: "date", y: "temp", symbol: "triangle", r: 3.5, fill: token("--warm"), stroke: surface, strokeWidth: 0.75 }),
+      Plot.dot(below, { x: "date", y: "temp", symbol: "triangle", rotate: 180, r: 3.5, fill: token("--cool"), stroke: surface, strokeWidth: 0.75 }),
     ],
   });
 }
 
 export function precipitationChart(opts: ChartOptions) {
-  const color = token("--series-precip");
+  const { rows, band } = opts.analysis;
+  const bandByIso = new Map(band.map((b) => [b.iso, b]));
+  const top = Math.max(10, ...band.map((b) => b.p90), ...rows.map((r) => r.precipAcc));
   return Plot.plot({
     ...baseOptions(opts),
-    y: { label: "mm", grid: true, nice: true, tickFormat: axisNum, domain: [0, Math.max(10, ...opts.rows.map((r) => r.precipAcc))] },
+    y: { label: "mm", grid: true, nice: true, tickFormat: axisNum, domain: [0, top] },
     marks: [
+      Plot.areaY(band, { x: "date", y1: "p10", y2: "p90", fill: token("--band-precip") }),
       Plot.ruleY([0], { stroke: token("--text-muted"), strokeOpacity: 0.5 }),
-      ...lineMarks(
-        opts.rows,
-        "precipAcc",
-        color,
-        (r) => `${dayFmt.format(r.date)}\nAcumulada: ${num(r.precipAcc, 0)} mm\nDel día: ${num(r.precip)} mm${prelimNote(r)}`,
-      ),
+      Plot.lineY(band, { x: "date", y: "p50", stroke: token("--text-muted"), strokeWidth: 1.5 }),
+      ...yearLine(rows, "precipAcc", token("--series-precip"), 2, (r) => {
+        const b = bandByIso.get(r.iso);
+        const ofMedian = b && b.p50 > 0 ? ` (${num((r.precipAcc / b.p50) * 100, 0)} % de la mediana)` : "";
+        return (
+          `${dayFmt.format(r.date)}\nAcumulada: ${num(r.precipAcc, 0)} mm${ofMedian}, ${pct(r.precipAccPct)}` +
+          `\nMediana: ${num(b?.p50 ?? null, 0)} mm (p10–p90: ${num(b?.p10 ?? null, 0)} a ${num(b?.p90 ?? null, 0)})` +
+          `\nDel día: ${num(r.precip)} mm${prelimNote(r)}`
+        );
+      }),
     ],
   });
 }

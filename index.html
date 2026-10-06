@@ -14,22 +14,29 @@
         <p class="place" id="place">Bariloche · cargando…</p>
       </header>
 
+      <p class="summary" id="summary" hidden></p>
       <p class="status" id="status" role="status" aria-live="polite">Descargando datos de Open-Meteo…</p>
 
       <section class="chart-card" aria-labelledby="t-title">
         <h2 id="t-title">Temperatura media diaria</h2>
-        <ul class="legend" aria-hidden="true">
-          <li><span class="swatch solid temp"></span>Reanálisis</li>
-          <li><span class="swatch dashed temp"></span>Preliminar (pronóstico)</li>
+        <ul class="legend">
+          <li><span class="swatch solid line"></span><span class="year-label">Año</span></li>
+          <li><span class="swatch band temp"></span>Normal 1991–2020 (p10–p90)</li>
+          <li><span class="swatch solid median"></span>Mediana</li>
+          <li><span class="warm" aria-hidden="true">▲</span>Más cálido que el p90</li>
+          <li><span class="cool" aria-hidden="true">▼</span>Más frío que el p10</li>
+          <li><span class="swatch dashed line"></span>Preliminar</li>
         </ul>
         <figure id="chart-temp" class="chart"></figure>
       </section>
 
       <section class="chart-card" aria-labelledby="p-title">
-        <h2 id="p-title">Precipitación acumulada desde el 1 de enero</h2>
-        <ul class="legend" aria-hidden="true">
-          <li><span class="swatch solid precip"></span>Reanálisis</li>
-          <li><span class="swatch dashed precip"></span>Preliminar (pronóstico)</li>
+        <h2 id="p-title">Precipitación acumulada</h2>
+        <ul class="legend">
+          <li><span class="swatch solid precip"></span><span class="year-label">Año</span></li>
+          <li><span class="swatch band precip"></span>Normal 1991–2020 (p10–p90)</li>
+          <li><span class="swatch solid median"></span>Mediana</li>
+          <li><span class="swatch dashed precip"></span>Preliminar</li>
         </ul>
         <figure id="chart-precip" class="chart"></figure>
       </section>

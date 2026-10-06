@@ -3,6 +3,7 @@
 // y probados contra la API real (octubre 2026).
 
 import { cacheGet, cacheSet } from "./cache";
+import { addDays } from "./dates";
 
 const ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive";
 const FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
@@ -85,18 +86,6 @@ async function getJson(url: string, maxAgeMs: number): Promise<ApiResponse> {
 }
 
 export class ApiError extends Error {}
-
-/** Suma (o resta) días a una fecha "AAAA-MM-DD". */
-export function addDays(date: string, days: number): string {
-  const d = new Date(date + "T00:00:00Z");
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-/** Cantidad de días de `a` a `b` (b − a). */
-export function daysBetween(a: string, b: string): number {
-  return Math.round((Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z")) / 86_400_000);
-}
 
 /**
  * Con un solo modelo la API devuelve `temperature_2m_mean`; con varios,

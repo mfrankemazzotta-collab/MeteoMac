@@ -1,5 +1,5 @@
 /* Tokens de color. Paleta validada (colorblind-safe) de la guía de visualización:
-   temperatura = naranja (slot 2), precipitación = azul (slot 1). */
+   precipitación = azul (slot 1); días cálidos/fríos = par divergente rojo/azul. */
 :root {
   color-scheme: light;
   --surface-0: #f4f3f0;
@@ -8,8 +8,12 @@
   --text-primary: #0b0b0b;
   --text-secondary: #52514e;
   --text-muted: #77766f;
-  --series-temp: #eb6834;
+  --series-line: #3d3c39;
   --series-precip: #2a78d6;
+  --band-temp: #e8e7e1;
+  --band-precip: #cde2fb;
+  --warm: #e34948;
+  --cool: #2a78d6;
   --plot-background: var(--surface-1);
 }
 
@@ -22,8 +26,12 @@
     --text-primary: #ffffff;
     --text-secondary: #c3c2b7;
     --text-muted: #8f8e86;
-    --series-temp: #d95926;
+    --series-line: #dedcd3;
     --series-precip: #3987e5;
+    --band-temp: #34342f;
+    --band-precip: #1e3556;
+    --warm: #e66767;
+    --cool: #5598e7;
   }
 }
 
@@ -35,8 +43,12 @@
   --text-primary: #ffffff;
   --text-secondary: #c3c2b7;
   --text-muted: #8f8e86;
-  --series-temp: #d95926;
+  --series-line: #dedcd3;
   --series-precip: #3987e5;
+  --band-temp: #34342f;
+  --band-precip: #1e3556;
+  --warm: #e66767;
+  --cool: #5598e7;
 }
 
 * {
@@ -116,12 +128,56 @@ header h1 {
   border-top-style: dashed;
 }
 
-.swatch.temp {
-  border-color: var(--series-temp);
+.swatch.line {
+  border-color: var(--series-line);
 }
 
 .swatch.precip {
   border-color: var(--series-precip);
+}
+
+.swatch.median {
+  border-color: var(--text-muted);
+}
+
+.swatch.band {
+  height: 12px;
+  border: 0;
+  border-radius: 2px;
+}
+
+.swatch.band.temp {
+  background: var(--band-temp);
+}
+
+.swatch.band.precip {
+  background: var(--band-precip);
+}
+
+.legend .warm {
+  color: var(--warm);
+}
+
+.legend .cool {
+  color: var(--cool);
+}
+
+.summary {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 1rem;
+}
+
+.summary strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.summary .sep {
+  color: var(--text-muted);
+  padding: 0 4px;
 }
 
 .chart {
