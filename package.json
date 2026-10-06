@@ -1,0 +1,25 @@
+{
+  "name": "meteomac",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Clima diario por punto: el año en curso comparado con la climatología 1991–2020 (datos de Open-Meteo).",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "check": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mfrankemazzotta-collab/MeteoMac.git"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.3"
+  },
+  "dependencies": {
+    "@observablehq/plot": "^0.6.17"
+  }
+}
