@@ -28,6 +28,9 @@ function splitPreliminary(rows: DayRow[]) {
 interface ChartOptions {
   analysis: YearAnalysis;
   width: number;
+  /** Otro modelo para superponer (solo temperatura: la lluvia es la misma en ambos). */
+  compare?: YearAnalysis;
+  compareLabel?: string;
 }
 
 function baseOptions({ analysis, width }: ChartOptions) {
@@ -76,6 +79,11 @@ export function temperatureChart(opts: ChartOptions) {
   const above = rows.filter((r) => r.tempOutside === "above");
   const below = rows.filter((r) => r.tempOutside === "below");
   const surface = token("--surface-1");
+  // En el celular hay poco lugar: triángulos más chicos para que no tapen la línea.
+  const r = opts.width < 500 ? 2.5 : 3.5;
+  const compare = opts.compare;
+  const compareColor = token("--series-compare");
+  const compareByIso = compare && new Map(compare.rows.map((c) => [c.iso, c]));
   return Plot.plot({
     ...baseOptions(opts),
     y: { label: "°C", grid: true, nice: true, tickFormat: axisNum },
@@ -83,17 +91,25 @@ export function temperatureChart(opts: ChartOptions) {
       Plot.areaY(band, { x: "date", y1: "t10", y2: "t90", fill: token("--band-temp"), curve: "monotone-x" }),
       Plot.ruleY([0], { stroke: token("--text-muted"), strokeOpacity: 0.5 }),
       Plot.lineY(band, { x: "date", y: "t50", stroke: token("--text-muted"), strokeWidth: 1.5, curve: "monotone-x" }),
+      ...(compare
+        ? [
+            Plot.lineY(compare.band, { x: "date", y: "t50", stroke: compareColor, strokeWidth: 1.25, strokeDasharray: "2 3", curve: "monotone-x" }),
+            Plot.lineY(compare.rows, { x: "date", y: "temp", stroke: compareColor, strokeWidth: 1.25, strokeOpacity: 0.9 }),
+          ]
+        : []),
       ...yearLine(rows, "temp", token("--series-line"), 1.25, (r) => {
         const b = bandByIso.get(r.iso);
         const where = r.tempOutside === "above" ? " ▲ más cálido que el p90" : r.tempOutside === "below" ? " ▼ más frío que el p10" : "";
+        const c = compareByIso?.get(r.iso);
+        const other = c && !r.preliminary ? `\n${opts.compareLabel}: ${num(c.temp)} °C (${pct(c.tempPct)})` : "";
         return (
           `${dayFmt.format(r.date)}\nT media: ${num(r.temp)} °C (${pct(r.tempPct)})${where}` +
-          `\nNormal: ${num(b?.t50 ?? null)} °C (p10–p90: ${num(b?.t10 ?? null)} a ${num(b?.t90 ?? null)})${prelimNote(r)}`
+          `\nNormal: ${num(b?.t50 ?? null)} °C (p10–p90: ${num(b?.t10 ?? null)} a ${num(b?.t90 ?? null)})${other}${prelimNote(r)}`
         );
       }),
       // Días fuera de la banda: color + forma (▲ arriba, ▼ abajo), para no depender solo del color.
-      Plot.dot(above, { x: "date", y: "temp", symbol: "triangle", r: 3.5, fill: token("--warm"), stroke: surface, strokeWidth: 0.75 }),
-      Plot.dot(below, { x: "date", y: "temp", symbol: "triangle", rotate: 180, r: 3.5, fill: token("--cool"), stroke: surface, strokeWidth: 0.75 }),
+      Plot.dot(above, { x: "date", y: "temp", symbol: "triangle", r, fill: token("--warm"), stroke: surface, strokeWidth: 0.75 }),
+      Plot.dot(below, { x: "date", y: "temp", symbol: "triangle", rotate: 180, r, fill: token("--cool"), stroke: surface, strokeWidth: 0.75 }),
     ],
   });
 }

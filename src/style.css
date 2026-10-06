@@ -14,6 +14,8 @@
   --band-precip: #cde2fb;
   --warm: #e34948;
   --cool: #2a78d6;
+  --series-compare: #4a3aa7;
+  --focus: #2a78d6;
   --plot-background: var(--surface-1);
 }
 
@@ -32,6 +34,8 @@
     --band-precip: #1e3556;
     --warm: #e66767;
     --cool: #5598e7;
+    --series-compare: #9085e9;
+    --focus: #86b6ef;
   }
 }
 
@@ -49,6 +53,8 @@
   --band-precip: #1e3556;
   --warm: #e66767;
   --cool: #5598e7;
+  --series-compare: #9085e9;
+  --focus: #86b6ef;
 }
 
 * {
@@ -202,4 +208,171 @@ header h1 {
 
 .source a {
   color: inherit;
+}
+
+/* ---- Encabezado y tema ---- */
+
+.top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.theme-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+/* ---- Controles (mobile-first: uno debajo del otro) ---- */
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.field.search {
+  grid-column: 1 / -1;
+  position: relative;
+}
+
+.field label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.controls input[type="search"],
+.controls select {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 16px; /* 16px evita el zoom automático de iOS al tocar el campo */
+}
+
+.toggles {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
+
+.toggles label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  cursor: pointer;
+}
+
+.toggles input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--focus);
+}
+
+@media (min-width: 640px) {
+  .controls {
+    grid-template-columns: 2fr 1fr 1.3fr;
+  }
+  .field.search {
+    grid-column: auto;
+  }
+}
+
+:where(button, input, select, a):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---- Resultados del buscador ---- */
+
+.results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  margin: 4px 0 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.15);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.results button {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.results button:hover,
+.results button:focus-visible {
+  background: var(--surface-0);
+}
+
+.results .detail,
+.summary .detail {
+  color: var(--text-secondary);
+  font-size: 0.85em;
+}
+
+.results .empty {
+  padding: 8px 10px;
+  color: var(--text-secondary);
+}
+
+/* ---- Comparación de modelos ---- */
+
+.swatch.compare {
+  border-color: var(--series-compare);
+}
+
+.swatch.dotted {
+  border-top-style: dotted;
+}
+
+.note {
+  margin: 4px 0 8px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+[hidden] {
+  display: none !important;
 }

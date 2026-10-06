@@ -6,13 +6,58 @@
     <meta name="color-scheme" content="light dark" />
     <title>MeteoMac · Clima diario</title>
     <meta name="description" content="Cómo viene el año en temperatura y lluvia, comparado con la climatología 1991–2020." />
+    <script>
+      // Aplica el tema elegido antes de pintar, para que no parpadee.
+      try {
+        const t = localStorage.getItem("meteomac-theme");
+        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
   </head>
   <body>
     <main>
-      <header>
-        <h1>MeteoMac</h1>
-        <p class="place" id="place">Bariloche · cargando…</p>
+      <header class="top">
+        <div>
+          <h1>MeteoMac</h1>
+          <p class="place" id="place">Cargando…</p>
+        </div>
+        <button type="button" class="theme-btn" id="theme" aria-label="Cambiar tema">
+          <span aria-hidden="true" id="theme-icon">◐</span>
+          <span id="theme-text">Automático</span>
+        </button>
       </header>
+
+      <form class="controls" id="controls" autocomplete="off">
+        <div class="field search">
+          <label for="q">Lugar</label>
+          <input
+            id="q"
+            type="search"
+            placeholder="Buscar ciudad o pueblo…"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded="false"
+            aria-controls="results"
+            enterkeyhint="search"
+          />
+          <ul id="results" class="results" role="listbox" aria-label="Lugares encontrados" hidden></ul>
+        </div>
+        <div class="field">
+          <label for="year">Año</label>
+          <select id="year"></select>
+        </div>
+        <div class="field">
+          <label for="model">Modelo</label>
+          <select id="model">
+            <option value="era5_land">ERA5-Land</option>
+            <option value="era5">ERA5</option>
+          </select>
+        </div>
+        <div class="toggles">
+          <label><input type="checkbox" id="hydro" /> Año hidrológico (abril–marzo)</label>
+          <label><input type="checkbox" id="compare" /> Comparar ERA5 y ERA5-Land</label>
+        </div>
+      </form>
 
       <p class="summary" id="summary" hidden></p>
       <p class="status" id="status" role="status" aria-live="polite">Descargando datos de Open-Meteo…</p>
@@ -25,7 +70,9 @@
           <li><span class="swatch solid median"></span>Mediana</li>
           <li><span class="warm" aria-hidden="true">▲</span>Más cálido que el p90</li>
           <li><span class="cool" aria-hidden="true">▼</span>Más frío que el p10</li>
-          <li><span class="swatch dashed line"></span>Preliminar</li>
+          <li class="prelim-only"><span class="swatch dashed line"></span>Preliminar</li>
+          <li class="compare-only" hidden><span class="swatch solid compare"></span><span class="compare-label"></span></li>
+          <li class="compare-only" hidden><span class="swatch dotted compare"></span><span>Mediana <span class="compare-label"></span></span></li>
         </ul>
         <figure id="chart-temp" class="chart"></figure>
       </section>
@@ -36,9 +83,13 @@
           <li><span class="swatch solid precip"></span><span class="year-label">Año</span></li>
           <li><span class="swatch band precip"></span>Normal 1991–2020 (p10–p90)</li>
           <li><span class="swatch solid median"></span>Mediana</li>
-          <li><span class="swatch dashed precip"></span>Preliminar</li>
+          <li class="prelim-only"><span class="swatch dashed precip"></span>Preliminar</li>
         </ul>
         <figure id="chart-precip" class="chart"></figure>
+        <p class="note compare-only" hidden>
+          La lluvia es la misma con los dos modelos: Open-Meteo no publica precipitación de ERA5-Land, así que siempre sale
+          de ERA5.
+        </p>
       </section>
 
       <footer id="source" class="source"></footer>

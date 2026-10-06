@@ -2,7 +2,16 @@
 
 Página web estática que muestra cómo viene el año en **temperatura media diaria** y **precipitación acumulada** para un punto, comparado con la climatología 1991–2020. Alternativa más liviana y usable en el celular a [PointWx Daily Climate](https://hh.guidocioni.it/pointwx/dailyclimate).
 
-Ubicación de referencia: Bariloche (lat −41.1082, lon −71.4341).
+Ubicación de referencia: Bariloche (lat −41.1082, lon −71.4341). Se puede buscar cualquier lugar y elegir cualquier año desde 1991.
+
+## Uso
+
+- **Lugar**: buscador con la [API de geocoding de Open-Meteo](https://open-meteo.com/en/docs/geocoding-api).
+- **Año**: de 1991 al actual. Con **año hidrológico**, cada período va de abril a marzo.
+- **Modelo**: ERA5-Land (~11 km) o ERA5 (~25 km). **Comparar** superpone la temperatura del otro modelo y su mediana.
+- **Tema**: automático, claro u oscuro (botón arriba a la derecha; se recuerda en el navegador).
+- **Enlaces para compartir**: el estado va en la URL, por ejemplo
+  `?lat=-42.9115&lon=-71.3195&lugar=Esquel&anio=2026&modelo=era5-land&hidro=1&comparar=1`.
 
 ## Estado
 
@@ -10,7 +19,7 @@ Ubicación de referencia: Bariloche (lat −41.1082, lon −71.4341).
 |---|---|
 | 1. Prototipo: Bariloche fijo, datos y dos gráficos | ✅ |
 | 2. Climatología: suavizado, percentiles, resumen, tests | ✅ |
-| 3. Interfaz: controles, URL, celular, temas | pendiente |
+| 3. Interfaz: controles, URL, celular, temas | ✅ |
 | 4. Deploy: GitHub Pages + Action | pendiente |
 | 5. Extras: estación del SMN, exportar CSV | pendiente |
 
@@ -36,11 +45,13 @@ Otros comandos:
 ```
 index.html            página (estructura y textos fijos)
 src/
-  main.ts             arranque: baja los datos y dibuja
+  main.ts             interfaz: controles, buscador, tema, dibujo
+  state.ts            estado de la página <-> URL
   style.css           estilos y colores (tema claro/oscuro)
   data/
     openmeteo.ts      consultas a Open-Meteo (reanálisis + pronóstico)
     cache.ts          caché de respuestas en IndexedDB
+    geocoding.ts      buscador de lugares
     dates.ts          utilidades de fechas
     climatology.ts    percentiles 1991–2020 (ventana ±7 días, acumuladas)
     analysis.ts       cruza el año con la climatología + resumen
@@ -53,9 +64,9 @@ Los cálculos (`src/data/`) no tocan la interfaz, así se pueden testear por sep
 
 ## Datos
 
-- **Reanálisis**: [Open-Meteo Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api), variables diarias `temperature_2m_mean` y `precipitation_sum`, `timezone=auto`, modelos `era5` y `era5_land`. Se hace una sola consulta desde 1991-01-01 hasta el último día disponible.
+- **Reanálisis**: [Open-Meteo Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api), variables diarias `temperature_2m_mean` y `precipitation_sum`, `timezone=auto`, modelos `era5` y `era5_land`. Se hace una sola consulta por lugar desde 1991-01-01 hasta el último día disponible; con ERA5-Land o al comparar, esa consulta trae los dos modelos juntos (`models=era5,era5_land`).
 - **Hueco hasta hoy**: el reanálisis llega con unos 5 a 7 días de atraso. Esos días se completan con la [API de pronóstico](https://open-meteo.com/en/docs) (`past_days`) y se dibujan punteados como *datos preliminares*.
-- **ERA5-Land no tiene precipitación en Open-Meteo**: la API devuelve `null` en toda la serie. Con ERA5-Land, la temperatura sale de ERA5-Land y la precipitación de ERA5, y la página lo aclara.
+- **ERA5-Land no tiene precipitación en Open-Meteo**: la API devuelve `null` en toda la serie. La lluvia sale siempre de ERA5 (también al elegir ERA5-Land o al comparar), y la página lo aclara.
 - Las respuestas se guardan en el navegador (12 h el reanálisis, 1 h el pronóstico). Open-Meteo cuenta una serie de 35 años como muchas consultas y limita por minuto.
 
 ## Método de climatología

@@ -12,6 +12,7 @@ export const CLIMATE_START = "1991-01-01";
 
 /** Modelos del reanálisis, con el nombre exacto que acepta el parámetro `models`. */
 export type Model = "era5" | "era5_land";
+export const MODELS: Model[] = ["era5", "era5_land"];
 
 export const MODEL_INFO: Record<Model, { label: string; resolution: string }> = {
   era5: { label: "ERA5", resolution: "grilla de 0,25°, ~25 km" },
@@ -20,13 +21,10 @@ export const MODEL_INFO: Record<Model, { label: string; resolution: string }> = 
 
 /**
  * Open-Meteo no publica precipitación para ERA5-Land: la serie llega entera en null
- * (verificado en varios puntos y períodos). Por eso, con ERA5-Land la temperatura sale
- * de ERA5-Land y la precipitación de ERA5, y la interfaz lo dice.
+ * (verificado en varios puntos y períodos). Por eso la lluvia sale siempre de ERA5,
+ * y la interfaz lo dice.
  */
-export const PRECIP_SOURCE: Record<Model, Model> = {
-  era5: "era5",
-  era5_land: "era5",
-};
+export const PRECIP_MODEL: Model = "era5";
 
 export interface DailySeries {
   /** Fechas locales "AAAA-MM-DD", consecutivas. */
@@ -38,19 +36,26 @@ export interface DailySeries {
 }
 
 export interface PointData {
-  model: Model;
-  precipModel: Model;
+  /** Modelos con temperatura en esta respuesta. */
+  models: Model[];
   requested: { lat: number; lon: number };
-  /** Centro de la celda de la grilla que devolvió la API. */
-  grid: { lat: number; lon: number; elevation: number };
+  /** Elevación que usa Open-Meteo para corregir la temperatura (m). */
+  elevation: number;
   timezone: string;
-  /** Reanálisis consolidado, desde 1991-01-01 hasta `lastArchiveDate`. */
-  archive: DailySeries;
+  /** Reanálisis consolidado por modelo, desde 1991-01-01 hasta `lastArchiveDate`. */
+  archive: Partial<Record<Model, DailySeries>>;
   lastArchiveDate: string;
   /** Días posteriores al reanálisis, hasta hoy (API de pronóstico). Datos preliminares. */
   preliminary: DailySeries;
   /** Fecha de hoy en la zona horaria del lugar. */
   today: string;
+}
+
+/** Serie de un modelo: su reanálisis + los días preliminares (comunes a todos los modelos). */
+export function seriesFor(data: PointData, model: Model) {
+  const archive = data.archive[model];
+  if (!archive) throw new Error(`No hay datos de ${MODEL_INFO[model].label}`);
+  return { archive, preliminary: data.preliminary };
 }
 
 interface ApiResponse {
@@ -62,6 +67,8 @@ interface ApiResponse {
 }
 
 const HOUR = 3_600_000;
+
+export class ApiError extends Error {}
 
 /**
  * GET con caché en el navegador. La URL completa es la clave, así que al cambiar
@@ -85,8 +92,6 @@ async function getJson(url: string, maxAgeMs: number): Promise<ApiResponse> {
   return body as ApiResponse;
 }
 
-export class ApiError extends Error {}
-
 /**
  * Con un solo modelo la API devuelve `temperature_2m_mean`; con varios,
  * le agrega el sufijo del modelo: `temperature_2m_mean_era5_land`.
@@ -98,20 +103,16 @@ function pick(daily: ApiResponse["daily"], variable: string, model: Model, multi
   return values as (number | null)[];
 }
 
-/** Índice del último día con temperatura y precipitación. */
-function lastCompleteIndex(s: DailySeries): number {
-  for (let i = s.dates.length - 1; i >= 0; i--) {
-    if (s.temp[i] != null && s.precip[i] != null) return i;
-  }
-  return -1;
-}
-
 function slice(s: DailySeries, from: number, to: number): DailySeries {
   return { dates: s.dates.slice(from, to), temp: s.temp.slice(from, to), precip: s.precip.slice(from, to) };
 }
 
-async function fetchArchive(lat: number, lon: number, model: Model) {
-  const models = [...new Set([model, PRECIP_SOURCE[model]])];
+/** Modelos a pedir: los elegidos más ERA5 para la lluvia, en orden fijo (así comparten caché). */
+export function archiveModels(models: Model[]): Model[] {
+  return MODELS.filter((m) => m === PRECIP_MODEL || models.includes(m));
+}
+
+async function fetchArchive(lat: number, lon: number, models: Model[]) {
   const multi = models.length > 1;
   const params = (endDate: string) =>
     new URLSearchParams({
@@ -126,26 +127,29 @@ async function fetchArchive(lat: number, lon: number, model: Model) {
 
   // La API no acepta end_date = hoy; pedimos hasta ayer (UTC). Si aun así se queja,
   // el mensaje trae la fecha máxima permitida y reintentamos una vez con esa.
-  let endDate = addDays(new Date().toISOString().slice(0, 10), -1);
+  const endDate = addDays(new Date().toISOString().slice(0, 10), -1);
   let json: ApiResponse;
   try {
     json = await getJson(`${ARCHIVE_URL}?${params(endDate)}`, 12 * HOUR);
   } catch (e) {
     const max = e instanceof ApiError && /to (\d{4}-\d{2}-\d{2})/.exec(e.message)?.[1];
     if (!max) throw e;
-    endDate = max;
-    json = await getJson(`${ARCHIVE_URL}?${params(endDate)}`, 12 * HOUR);
+    json = await getJson(`${ARCHIVE_URL}?${params(max)}`, 12 * HOUR);
   }
 
-  const series: DailySeries = {
-    dates: json.daily.time as string[],
-    temp: pick(json.daily, "temperature_2m_mean", model, multi),
-    precip: pick(json.daily, "precipitation_sum", PRECIP_SOURCE[model], multi),
-  };
+  const dates = json.daily.time as string[];
+  const precip = pick(json.daily, "precipitation_sum", PRECIP_MODEL, multi);
+  const temps = models.map((m) => pick(json.daily, "temperature_2m_mean", m, multi));
+
   // La API devuelve null en los últimos días (el reanálisis llega con ~5–7 días de atraso).
-  const last = lastCompleteIndex(series);
+  // Cortamos en el último día en que todos los modelos tienen temperatura y hay lluvia.
+  let last = dates.length - 1;
+  while (last >= 0 && (precip[last] == null || temps.some((t) => t[last] == null))) last--;
   if (last < 0) throw new ApiError("El reanálisis no trajo datos para este punto");
-  return { json, archive: slice(series, 0, last + 1) };
+
+  const archive: Partial<Record<Model, DailySeries>> = {};
+  models.forEach((m, i) => (archive[m] = slice({ dates, temp: temps[i], precip }, 0, last + 1)));
+  return { json, archive, lastArchiveDate: dates[last] };
 }
 
 async function fetchPreliminary(lat: number, lon: number, lastArchiveDate: string) {
@@ -170,16 +174,18 @@ async function fetchPreliminary(lat: number, lon: number, lastArchiveDate: strin
   return { preliminary, today };
 }
 
-/** Una consulta al reanálisis (1991 → último día disponible) + una al pronóstico para el hueco. */
-export async function fetchPointData(lat: number, lon: number, model: Model): Promise<PointData> {
-  const { json, archive } = await fetchArchive(lat, lon, model);
-  const lastArchiveDate = archive.dates[archive.dates.length - 1];
+/**
+ * Una consulta al reanálisis (1991 → último día disponible, todos los modelos juntos)
+ * y una al pronóstico para completar el hueco hasta hoy.
+ */
+export async function fetchPointData(lat: number, lon: number, models: Model[]): Promise<PointData> {
+  const requestModels = archiveModels(models);
+  const { json, archive, lastArchiveDate } = await fetchArchive(lat, lon, requestModels);
   const { preliminary, today } = await fetchPreliminary(lat, lon, lastArchiveDate);
   return {
-    model,
-    precipModel: PRECIP_SOURCE[model],
+    models: requestModels,
     requested: { lat, lon },
-    grid: { lat: json.latitude, lon: json.longitude, elevation: json.elevation },
+    elevation: json.elevation,
     timezone: json.timezone,
     archive,
     lastArchiveDate,
