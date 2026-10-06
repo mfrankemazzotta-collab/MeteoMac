@@ -4,6 +4,8 @@ Página web estática que muestra cómo viene el año en **temperatura media dia
 
 Ubicación de referencia: Bariloche (lat −41.1082, lon −71.4341). Se puede buscar cualquier lugar y elegir cualquier año desde 1991.
 
+**Página publicada:** https://mfrankemazzotta-collab.github.io/MeteoMac/
+
 ## Uso
 
 - **Lugar**: buscador con la [API de geocoding de Open-Meteo](https://open-meteo.com/en/docs/geocoding-api).
@@ -20,7 +22,7 @@ Ubicación de referencia: Bariloche (lat −41.1082, lon −71.4341). Se puede b
 | 1. Prototipo: Bariloche fijo, datos y dos gráficos | ✅ |
 | 2. Climatología: suavizado, percentiles, resumen, tests | ✅ |
 | 3. Interfaz: controles, URL, celular, temas | ✅ |
-| 4. Deploy: GitHub Pages + Action | pendiente |
+| 4. Deploy: GitHub Pages + Action | ✅ |
 | 5. Extras: estación del SMN, exportar CSV | pendiente |
 
 ## Correrlo en tu compu
@@ -40,9 +42,24 @@ Otros comandos:
 - `npm run build`: chequea tipos y genera la versión final en `dist/`.
 - `npm run preview`: sirve `dist/` para probarla.
 
+## Deploy
+
+Cada push a `main` dispara [la Action](.github/workflows/deploy.yml): instala dependencias, corre los tests, compila y publica `dist/` en GitHub Pages. Si un test falla, no se publica nada. También se puede lanzar a mano desde la pestaña *Actions* → *Deploy a GitHub Pages* → *Run workflow*.
+
+Configuración necesaria (una sola vez): *Settings → Pages → Build and deployment → Source: GitHub Actions*.
+
+Para probar el build tal como queda en Pages (bajo `/MeteoMac/`):
+
+```bash
+npm run build
+npx vite preview --base /MeteoMac/
+```
+
 ## Estructura
 
 ```
+.github/workflows/
+  deploy.yml          build + tests + publicación en GitHub Pages
 index.html            página (estructura y textos fijos)
 src/
   main.ts             interfaz: controles, buscador, tema, dibujo
