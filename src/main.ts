@@ -1,7 +1,9 @@
 import "./style.css";
 import { fetchPointData, MODEL_INFO, MODELS, PRECIP_MODEL, seriesFor, type Model, type PointData } from "./data/openmeteo";
 import { analyzeYear, buildClimatology, type PointClimatology, type Summary } from "./data/analysis";
-import { periodYear } from "./data/climatology";
+import { dailyClimatology, periodYear, type Climatology } from "./data/climatology";
+import { dailyAnomalies, TEMP_VAR_INFO, yearlyAnomalies, type TempVar } from "./data/anomalies";
+import { calendarChart, calendarLimit, colorLegend, stripesChart, stripesLimit } from "./charts/anomalyCharts";
 import { searchPlaces, type Place } from "./data/geocoding";
 import { num, precipitationChart, temperatureChart } from "./charts/charts";
 import { FIRST_YEAR, parseState, periodLabel, roundCoord, serializeState, type AppState } from "./state";
@@ -24,11 +26,17 @@ const ui = {
   compare: $<HTMLInputElement>("compare"),
   chartTemp: $("chart-temp"),
   chartPrecip: $("chart-precip"),
+  chartStripes: $("chart-stripes"),
+  chartCalendar: $("chart-calendar"),
+  rampStripes: $("ramp-stripes"),
+  rampCalendar: $("ramp-calendar"),
+  mapNote: $("map-note"),
 };
 
 let state: AppState = parseState(location.search);
 let data: PointData | null = null;
 const climCache = new Map<string, PointClimatology>();
+const varClimCache = new Map<string, Climatology>();
 let requestId = 0;
 let lastRender: (() => void) | null = null;
 
@@ -45,6 +53,17 @@ function dataCovers(d: PointData | null, s: AppState): d is PointData {
     d.requested.lon === s.lon &&
     neededModels(s).every((m) => d.archive[m] != null)
   );
+}
+
+/** Climatología diaria de la temperatura media, máxima o mínima (no depende del mes de inicio). */
+function varClimatology(d: PointData, model: Model, v: TempVar): Climatology {
+  const key = `${model}|var|${v}`;
+  let c = varClimCache.get(key);
+  if (!c) {
+    const archive = seriesFor(d, model).archive;
+    varClimCache.set(key, (c = dailyClimatology(archive.dates, archive[TEMP_VAR_INFO[v].key])));
+  }
+  return c;
 }
 
 function climatology(d: PointData, model: Model, startMonth: number): PointClimatology {
@@ -64,6 +83,7 @@ async function update() {
       if (id !== requestId) return; // llegó tarde: el usuario ya pidió otra cosa
       data = d;
       climCache.clear();
+      varClimCache.clear();
     } catch (e) {
       if (id !== requestId) return;
       setStatus(`No se pudieron bajar los datos: ${e instanceof Error ? e.message : e}`, true);
@@ -112,11 +132,41 @@ function render(d: PointData) {
   renderSummary(analysis.summary, compare?.summary, current);
   renderSource(d, climatology(d, state.model, startMonth).precipAcc.years);
 
+  // Mapa de colores: anomalías diarias de la variable elegida, todos los años.
+  const v = state.tempVar;
+  const vLabel = TEMP_VAR_INFO[v].label;
+  const mapDays = dailyAnomalies(seriesFor(d, state.model), varClimatology(d, state.model, v), v, startMonth).filter(
+    (x) => x.year >= FIRST_YEAR,
+  );
+  const mapYears = yearlyAnomalies(mapDays);
+  const yearLabel = (y: number) => periodLabel(y, state.hydro);
+  document.querySelectorAll<HTMLInputElement>("input[name=tempvar]").forEach((r) => (r.checked = r.value === v));
+  $("stripes-title").textContent = `Franjas: anomalía de la T ${vLabel} ${state.hydro ? "por año hidrológico" : "anual"}`;
+  $("calendar-title").textContent = `Calendario: anomalía de la T ${vLabel} de cada día`;
+  const lastYear = mapYears[mapYears.length - 1];
+  ui.mapNote.textContent =
+    `Anomalía = valor − promedio 1991–2020 para ese día del año (${MODEL_INFO[state.model].label}). ` +
+    `Rojo: más cálido que lo normal; azul: más frío. ` +
+    (lastYear && !lastYear.complete
+      ? `${yearLabel(lastYear.year)} está incompleto (${lastYear.days} días, borde punteado): se compara con lo normal para esos mismos días.`
+      : "");
+
+  // Ancho mínimo de dibujo: si el contenedor todavía mide ~0 px (al abrir la página o rotar),
+  // Plot calcularía anchos negativos. El SVG igual se achica para entrar en el contenedor.
+  const widthOf = (el: HTMLElement) => Math.max(280, el.clientWidth);
+
   lastRender = () => {
     ui.chartTemp.replaceChildren(
-      temperatureChart({ analysis, width: ui.chartTemp.clientWidth, compare, compareLabel: MODEL_INFO[other].label }),
+      temperatureChart({ analysis, width: widthOf(ui.chartTemp), compare, compareLabel: MODEL_INFO[other].label }),
     );
-    ui.chartPrecip.replaceChildren(precipitationChart({ analysis, width: ui.chartPrecip.clientWidth }));
+    ui.chartPrecip.replaceChildren(precipitationChart({ analysis, width: widthOf(ui.chartPrecip) }));
+    const w = widthOf(ui.chartStripes);
+    ui.rampStripes.replaceChildren(colorLegend(stripesLimit(mapYears), w));
+    ui.chartStripes.replaceChildren(stripesChart({ years: mapYears, width: w, label: yearLabel }));
+    ui.rampCalendar.replaceChildren(colorLegend(calendarLimit(mapDays), w));
+    ui.chartCalendar.replaceChildren(
+      calendarChart({ days: mapDays, width: w, startMonth, label: yearLabel, variableLabel: vLabel }),
+    );
   };
   lastRender();
 }
@@ -199,6 +249,9 @@ function setState(patch: Partial<AppState>) {
 ui.year.addEventListener("change", () => setState({ year: Number(ui.year.value) }));
 ui.model.addEventListener("change", () => setState({ model: ui.model.value as Model }));
 ui.compare.addEventListener("change", () => setState({ compare: ui.compare.checked }));
+document.querySelectorAll<HTMLInputElement>("input[name=tempvar]").forEach((r) =>
+  r.addEventListener("change", () => r.checked && setState({ tempVar: r.value as TempVar })),
+);
 // Al pasar a año hidrológico (o volver), el año elegido deja de significar lo mismo: volvemos al actual.
 ui.hydro.addEventListener("change", () => setState({ hydro: ui.hydro.checked, year: null }));
 $("controls").addEventListener("submit", (e) => {

@@ -31,6 +31,9 @@ export interface DailySeries {
   dates: string[];
   /** Temperatura media diaria a 2 m (°C). */
   temp: (number | null)[];
+  /** Temperatura máxima y mínima diarias a 2 m (°C). */
+  tmax: (number | null)[];
+  tmin: (number | null)[];
   /** Precipitación diaria (mm). */
   precip: (number | null)[];
 }
@@ -68,6 +71,9 @@ interface ApiResponse {
 
 const HOUR = 3_600_000;
 
+/** Variables diarias. Son 4: hasta 10 Open-Meteo las cuenta como una sola consulta. */
+const DAILY_VARS = "temperature_2m_mean,temperature_2m_max,temperature_2m_min,precipitation_sum";
+
 export class ApiError extends Error {}
 
 /**
@@ -104,7 +110,13 @@ function pick(daily: ApiResponse["daily"], variable: string, model: Model, multi
 }
 
 function slice(s: DailySeries, from: number, to: number): DailySeries {
-  return { dates: s.dates.slice(from, to), temp: s.temp.slice(from, to), precip: s.precip.slice(from, to) };
+  return {
+    dates: s.dates.slice(from, to),
+    temp: s.temp.slice(from, to),
+    tmax: s.tmax.slice(from, to),
+    tmin: s.tmin.slice(from, to),
+    precip: s.precip.slice(from, to),
+  };
 }
 
 /** Modelos a pedir: los elegidos más ERA5 para la lluvia, en orden fijo (así comparten caché). */
@@ -120,7 +132,7 @@ async function fetchArchive(lat: number, lon: number, models: Model[]) {
       longitude: String(lon),
       start_date: CLIMATE_START,
       end_date: endDate,
-      daily: "temperature_2m_mean,precipitation_sum",
+      daily: DAILY_VARS,
       timezone: "auto",
       models: models.join(","),
     });
@@ -140,6 +152,8 @@ async function fetchArchive(lat: number, lon: number, models: Model[]) {
   const dates = json.daily.time as string[];
   const precip = pick(json.daily, "precipitation_sum", PRECIP_MODEL, multi);
   const temps = models.map((m) => pick(json.daily, "temperature_2m_mean", m, multi));
+  const tmaxs = models.map((m) => pick(json.daily, "temperature_2m_max", m, multi));
+  const tmins = models.map((m) => pick(json.daily, "temperature_2m_min", m, multi));
 
   // La API devuelve null en los últimos días (el reanálisis llega con ~5–7 días de atraso).
   // Cortamos en el último día en que todos los modelos tienen temperatura y hay lluvia.
@@ -148,7 +162,9 @@ async function fetchArchive(lat: number, lon: number, models: Model[]) {
   if (last < 0) throw new ApiError("El reanálisis no trajo datos para este punto");
 
   const archive: Partial<Record<Model, DailySeries>> = {};
-  models.forEach((m, i) => (archive[m] = slice({ dates, temp: temps[i], precip }, 0, last + 1)));
+  models.forEach(
+    (m, i) => (archive[m] = slice({ dates, temp: temps[i], tmax: tmaxs[i], tmin: tmins[i], precip }, 0, last + 1)),
+  );
   return { json, archive, lastArchiveDate: dates[last] };
 }
 
@@ -157,7 +173,7 @@ async function fetchPreliminary(lat: number, lon: number, lastArchiveDate: strin
   const params = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lon),
-    daily: "temperature_2m_mean,precipitation_sum",
+    daily: DAILY_VARS,
     timezone: "auto",
     past_days: "92",
     forecast_days: "1",
@@ -166,6 +182,8 @@ async function fetchPreliminary(lat: number, lon: number, lastArchiveDate: strin
   const all: DailySeries = {
     dates: json.daily.time as string[],
     temp: json.daily.temperature_2m_mean as (number | null)[],
+    tmax: json.daily.temperature_2m_max as (number | null)[],
+    tmin: json.daily.temperature_2m_min as (number | null)[],
     precip: json.daily.precipitation_sum as (number | null)[],
   };
   const today = all.dates[all.dates.length - 1];

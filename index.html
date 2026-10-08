@@ -92,6 +92,24 @@
         </p>
       </section>
 
+      <section class="chart-card" aria-labelledby="m-title">
+        <h2 id="m-title">Mapa de colores: cada año respecto de 1991–2020</h2>
+        <div class="segmented" role="radiogroup" aria-label="Temperatura">
+          <label><input type="radio" name="tempvar" value="mean" checked />Media</label>
+          <label><input type="radio" name="tempvar" value="max" />Máxima</label>
+          <label><input type="radio" name="tempvar" value="min" />Mínima</label>
+        </div>
+
+        <h3 id="stripes-title">Franjas: anomalía anual</h3>
+        <div class="ramp" id="ramp-stripes"></div>
+        <figure id="chart-stripes" class="chart chart-sm"></figure>
+
+        <h3 id="calendar-title">Calendario: anomalía de cada día</h3>
+        <div class="ramp" id="ramp-calendar"></div>
+        <figure id="chart-calendar" class="chart"></figure>
+        <p class="note" id="map-note"></p>
+      </section>
+
       <footer id="source" class="source"></footer>
     </main>
     <script type="module" src="/src/main.ts"></script>

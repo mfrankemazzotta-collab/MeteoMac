@@ -11,9 +11,12 @@ Ubicación de referencia: Bariloche (lat −41.1082, lon −71.4341). Se puede b
 - **Lugar**: buscador con la [API de geocoding de Open-Meteo](https://open-meteo.com/en/docs/geocoding-api).
 - **Año**: de 1991 al actual. Con **año hidrológico**, cada período va de abril a marzo.
 - **Modelo**: ERA5-Land (~11 km) o ERA5 (~25 km). **Comparar** superpone la temperatura del otro modelo y su mediana.
+- **Mapa de colores**: para la temperatura **media, máxima o mínima**, siempre como anomalía respecto de 1991–2020:
+  - *Franjas* (estilo "warming stripes"): una franja por año, pintada según su anomalía.
+  - *Calendario*: una fila por año y una columna por día, con la anomalía de cada día.
 - **Tema**: automático, claro u oscuro (botón arriba a la derecha; se recuerda en el navegador).
 - **Enlaces para compartir**: el estado va en la URL, por ejemplo
-  `?lat=-42.9115&lon=-71.3195&lugar=Esquel&anio=2026&modelo=era5-land&hidro=1&comparar=1`.
+  `?lat=-42.9115&lon=-71.3195&lugar=Esquel&anio=2026&modelo=era5-land&hidro=1&comparar=1&temp=max`.
 
 ## Estado
 
@@ -72,16 +75,18 @@ src/
     dates.ts          utilidades de fechas
     climatology.ts    percentiles 1991–2020 (ventana ±7 días, acumuladas)
     analysis.ts       cruza el año con la climatología + resumen
+    anomalies.ts      anomalías diarias y anuales (franjas y calendario)
     *.test.ts         tests (Vitest)
   charts/
-    charts.ts         gráficos con Observable Plot
+    charts.ts         gráficos de temperatura y lluvia (Observable Plot)
+    anomalyCharts.ts  franjas y calendario de anomalías
 ```
 
 Los cálculos (`src/data/`) no tocan la interfaz, así se pueden testear por separado.
 
 ## Datos
 
-- **Reanálisis**: [Open-Meteo Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api), variables diarias `temperature_2m_mean` y `precipitation_sum`, `timezone=auto`, modelos `era5` y `era5_land`. Se hace una sola consulta por lugar desde 1991-01-01 hasta el último día disponible; con ERA5-Land o al comparar, esa consulta trae los dos modelos juntos (`models=era5,era5_land`).
+- **Reanálisis**: [Open-Meteo Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api), variables diarias `temperature_2m_mean`, `temperature_2m_max`, `temperature_2m_min` y `precipitation_sum` (hasta 10 variables Open-Meteo lo cuenta como una consulta), `timezone=auto`, modelos `era5` y `era5_land`. Se hace una sola consulta por lugar desde 1991-01-01 hasta el último día disponible; con ERA5-Land o al comparar, esa consulta trae los dos modelos juntos (`models=era5,era5_land`).
 - **Hueco hasta hoy**: el reanálisis llega con unos 5 a 7 días de atraso. Esos días se completan con la [API de pronóstico](https://open-meteo.com/en/docs) (`past_days`) y se dibujan punteados como *datos preliminares*.
 - **ERA5-Land no tiene precipitación en Open-Meteo**: la API devuelve `null` en toda la serie. La lluvia sale siempre de ERA5 (también al elegir ERA5-Land o al comparar), y la página lo aclara.
 - Las respuestas se guardan en el navegador (12 h el reanálisis, 1 h el pronóstico). Open-Meteo cuenta una serie de 35 años como muchas consultas y limita por minuto.
@@ -94,6 +99,7 @@ Los cálculos (`src/data/`) no tocan la interfaz, así se pueden testear por sep
 - **29 de febrero**: comparte posición con el 28. Su temperatura entra en la ventana de ese día y su lluvia se suma a la acumulada del 28, así que marzo no se corre un día en los años bisiestos.
 - **Percentil de cada día**: porcentaje de la distribución que queda por debajo, contando la mitad de los empates.
 - **Resumen**: lluvia acumulada como % de la mediana a la misma fecha; anomalía de temperatura = promedio de (T del día − T media normal de ese día).
+- **Anomalías (mapa de colores)**: anomalía del día = valor − promedio 1991–2020 de ese día (misma ventana de ±7 días). La de cada año es el promedio de sus anomalías diarias: para un año completo equivale a (media del año − media normal), y para el año en curso compara solo los días transcurridos con lo normal para esos días, sin sesgo por la estación. La escala de colores es simétrica; en el calendario se recorta en el percentil 98 para que unos pocos días extremos no laven el resto.
 - Las funciones aceptan un mes de inicio, listas para el año hidrológico (abril–marzo).
 
 ## Dependencias

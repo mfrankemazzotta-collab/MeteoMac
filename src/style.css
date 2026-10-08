@@ -16,6 +16,12 @@
   --cool: #2a78d6;
   --series-compare: #4a3aa7;
   --focus: #2a78d6;
+  /* Escala divergente para anomalías: azul (frío) ↔ gris (normal) ↔ rojo (cálido). */
+  --div-cold-2: #104281;
+  --div-cold-1: #6da7ec;
+  --div-neutral: #ecebe7;
+  --div-warm-1: #ec8a7a;
+  --div-warm-2: #a32523;
   --plot-background: var(--surface-1);
 }
 
@@ -36,6 +42,11 @@
     --cool: #5598e7;
     --series-compare: #9085e9;
     --focus: #86b6ef;
+    --div-cold-2: #5598e7;
+    --div-cold-1: #2a4a75;
+    --div-neutral: #33332f;
+    --div-warm-1: #7f3532;
+    --div-warm-2: #ef5a55;
   }
 }
 
@@ -55,6 +66,11 @@
   --cool: #5598e7;
   --series-compare: #9085e9;
   --focus: #86b6ef;
+  --div-cold-2: #5598e7;
+  --div-cold-1: #2a4a75;
+  --div-neutral: #33332f;
+  --div-warm-1: #7f3532;
+  --div-warm-2: #ef5a55;
 }
 
 * {
@@ -375,4 +391,59 @@ header h1 {
 
 [hidden] {
   display: none !important;
+}
+
+/* ---- Mapa de colores (franjas y calendario) ---- */
+
+.segmented {
+  display: inline-flex;
+  margin: 4px 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px;
+  background: var(--surface-0);
+}
+
+.segmented label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.segmented input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented label:has(input:checked) {
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
+}
+
+.segmented label:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.chart-card h3 {
+  margin: 12px 0 2px;
+  font-size: 0.95rem;
+}
+
+.ramp svg {
+  display: block;
+  max-width: 100%;
+}
+
+.chart.chart-sm {
+  min-height: 120px;
 }

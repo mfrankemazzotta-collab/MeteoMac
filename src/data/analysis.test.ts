@@ -4,10 +4,12 @@ import { addDays } from "./dates";
 import type { DailySeries } from "./openmeteo";
 
 function makeSeries(start: string, end: string, temp: (d: string) => number, precip: (d: string) => number): DailySeries {
-  const s: DailySeries = { dates: [], temp: [], precip: [] };
+  const s: DailySeries = { dates: [], temp: [], tmax: [], tmin: [], precip: [] };
   for (let d = start; d <= end; d = addDays(d, 1)) {
     s.dates.push(d);
     s.temp.push(temp(d));
+    s.tmax.push(temp(d) + 5);
+    s.tmin.push(temp(d) - 5);
     s.precip.push(precip(d));
   }
   return s;

@@ -2,6 +2,7 @@
 // Ejemplo: ?lat=-41.1082&lon=-71.4341&lugar=Bariloche&anio=2026&modelo=era5-land&hidro=1&comparar=1
 
 import { MODELS, type Model } from "./data/openmeteo";
+import type { TempVar } from "./data/anomalies";
 
 export interface AppState {
   lat: number;
@@ -13,6 +14,8 @@ export interface AppState {
   model: Model;
   hydro: boolean;
   compare: boolean;
+  /** Variable del mapa de colores (franjas y calendario). */
+  tempVar: TempVar;
 }
 
 export const DEFAULT_STATE: AppState = {
@@ -23,12 +26,15 @@ export const DEFAULT_STATE: AppState = {
   model: "era5_land",
   hydro: false,
   compare: false,
+  tempVar: "mean",
 };
 
 export const FIRST_YEAR = 1991;
 
 /** En la URL usamos guion (era5-land), que se lee mejor que el guion bajo. */
 const modelToUrl = (m: Model) => m.replace("_", "-");
+/** En la URL: temp=max o temp=min; la media es el valor por defecto y no aparece. */
+const tempVarFromUrl = (s: string | null): TempVar => (s === "max" || s === "min" ? s : "mean");
 const modelFromUrl = (s: string | null) => MODELS.find((m) => modelToUrl(m) === s || m === s);
 
 function numberIn(s: string | null, min: number, max: number): number | null {
@@ -53,6 +59,7 @@ export function parseState(search: string): AppState {
     model: modelFromUrl(p.get("modelo")) ?? DEFAULT_STATE.model,
     hydro: p.get("hidro") === "1",
     compare: p.get("comparar") === "1",
+    tempVar: tempVarFromUrl(p.get("temp")),
   };
 }
 
@@ -68,6 +75,7 @@ export function serializeState(s: AppState): string {
   p.set("modelo", modelToUrl(s.model));
   if (s.hydro) p.set("hidro", "1");
   if (s.compare) p.set("comparar", "1");
+  if (s.tempVar !== "mean") p.set("temp", s.tempVar);
   return `?${p}`;
 }
 
