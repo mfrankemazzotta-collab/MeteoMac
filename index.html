@@ -105,9 +105,31 @@
         <figure id="chart-stripes" class="chart chart-sm"></figure>
 
         <h3 id="calendar-title">Calendario: anomalía de cada día</h3>
+        <div class="toggles">
+          <label><input type="checkbox" id="smooth" checked /> Suavizar (promedio de 7 días)</label>
+        </div>
         <div class="ramp" id="ramp-calendar"></div>
         <figure id="chart-calendar" class="chart"></figure>
         <p class="note" id="map-note"></p>
+      </section>
+
+      <section class="chart-card" aria-labelledby="s-title">
+        <h2 id="s-title">Días con lluvia, nublados y despejados</h2>
+        <p class="sky-summary" id="sky-summary"></p>
+        <ul class="legend">
+          <li><span class="swatch box sky-rain"></span>Con lluvia (≥ 1 mm)</li>
+          <li><span class="swatch box sky-cloudy"></span>Nublado (nubosidad ≥ 75 %)</li>
+          <li><span class="swatch box sky-partly"></span>Parcialmente nublado</li>
+          <li><span class="swatch box sky-clear"></span>Despejado (≤ 25 %)</li>
+          <li><span class="swatch normal-tick"></span>Normal de días con lluvia (1991–2020)</li>
+        </ul>
+        <figure id="chart-sky" class="chart"></figure>
+        <p class="note">
+          Cada día se cuenta una sola vez: si llovió 1 mm o más es "con lluvia"; si no, se clasifica por la nubosidad
+          media del día. Lluvia y nubosidad salen de ERA5 (~25 km): sirven para comparar con lo normal del mismo modelo,
+          pero pueden diferir de lo que se ve en un lugar puntual. No se usan las horas de sol de esta fuente porque no
+          son confiables (marcan mucho sol en días casi cubiertos).
+        </p>
       </section>
 
       <footer id="source" class="source"></footer>

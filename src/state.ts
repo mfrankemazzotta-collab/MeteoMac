@@ -16,6 +16,8 @@ export interface AppState {
   compare: boolean;
   /** Variable del mapa de colores (franjas y calendario). */
   tempVar: TempVar;
+  /** Calendario suavizado con promedio móvil de 7 días. */
+  smooth: boolean;
 }
 
 export const DEFAULT_STATE: AppState = {
@@ -27,6 +29,7 @@ export const DEFAULT_STATE: AppState = {
   hydro: false,
   compare: false,
   tempVar: "mean",
+  smooth: true,
 };
 
 export const FIRST_YEAR = 1991;
@@ -60,6 +63,7 @@ export function parseState(search: string): AppState {
     hydro: p.get("hidro") === "1",
     compare: p.get("comparar") === "1",
     tempVar: tempVarFromUrl(p.get("temp")),
+    smooth: p.get("suavizado") !== "0",
   };
 }
 
@@ -76,6 +80,7 @@ export function serializeState(s: AppState): string {
   if (s.hydro) p.set("hidro", "1");
   if (s.compare) p.set("comparar", "1");
   if (s.tempVar !== "mean") p.set("temp", s.tempVar);
+  if (!s.smooth) p.set("suavizado", "0");
   return `?${p}`;
 }
 

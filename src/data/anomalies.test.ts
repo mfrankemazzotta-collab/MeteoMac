@@ -1,22 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { dailyAnomalies, referenceDate, symmetricLimit, yearlyAnomalies } from "./anomalies";
+import { dailyAnomalies, referenceDate, smoothAnomalies, symmetricLimit, yearlyAnomalies } from "./anomalies";
 import { dailyClimatology } from "./climatology";
 import { addDays } from "./dates";
 import type { DailySeries } from "./openmeteo";
 
 function makeSeries(start: string, end: string, tmax: (d: string) => number | null): DailySeries {
-  const s: DailySeries = { dates: [], temp: [], tmax: [], tmin: [], precip: [] };
+  const s: DailySeries = { dates: [], temp: [], tmax: [], tmin: [], precip: [], cloud: [] };
   for (let d = start; d <= end; d = addDays(d, 1)) {
     s.dates.push(d);
     s.temp.push(10);
     s.tmax.push(tmax(d));
     s.tmin.push(0);
     s.precip.push(1);
+    s.cloud.push(50);
   }
   return s;
 }
 
-const empty: DailySeries = { dates: [], temp: [], tmax: [], tmin: [], precip: [] };
+const empty: DailySeries = { dates: [], temp: [], tmax: [], tmin: [], precip: [], cloud: [] };
 
 // Base: máxima de 20 °C. 2025: 22 °C (+2). 2026 hasta marzo: 17 °C (−3), con un día sin dato.
 const archive = makeSeries("1991-01-01", "2026-03-31", (d) =>
@@ -85,5 +86,28 @@ describe("referenceDate", () => {
   it("año hidrológico: abril–diciembre en 1999 y enero–marzo en 2000", () => {
     expect(referenceDate("2025-04-01", 4).toISOString().slice(0, 10)).toBe("1999-04-01");
     expect(referenceDate("2028-02-29", 4).toISOString().slice(0, 10)).toBe("2000-02-29");
+  });
+});
+
+describe("smoothAnomalies", () => {
+  const mk = (iso: string, anomaly: number) => ({ iso, year: 2020, index: 0, value: anomaly, anomaly, preliminary: false });
+
+  it("promedia el día con 3 a cada lado", () => {
+    const days = ["2020-01-01", "2020-01-02", "2020-01-03", "2020-01-04", "2020-01-05", "2020-01-06", "2020-01-07"].map((d, i) =>
+      mk(d, i === 3 ? 7 : 0),
+    );
+    const s = smoothAnomalies(days);
+    expect(s[3].anomaly).toBeCloseTo(1); // 7 / 7 días
+    expect(s[3].value).toBe(7); // el valor original no cambia
+  });
+
+  it("en los bordes usa los días disponibles (mínimo 4)", () => {
+    const days = ["2020-01-01", "2020-01-02", "2020-01-03", "2020-01-04"].map((d) => mk(d, 4));
+    expect(smoothAnomalies(days)[0].anomaly).toBe(4);
+  });
+
+  it("no inventa en un hueco: si hay menos de 4 días deja el valor original", () => {
+    const days = [mk("2020-01-01", 5), mk("2020-01-02", 1), mk("2020-01-10", 9)];
+    expect(smoothAnomalies(days)[2].anomaly).toBe(9);
   });
 });

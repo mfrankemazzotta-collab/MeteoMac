@@ -13,10 +13,12 @@ Ubicación de referencia: Bariloche (lat −41.1082, lon −71.4341). Se puede b
 - **Modelo**: ERA5-Land (~11 km) o ERA5 (~25 km). **Comparar** superpone la temperatura del otro modelo y su mediana.
 - **Mapa de colores**: para la temperatura **media, máxima o mínima**, siempre como anomalía respecto de 1991–2020:
   - *Franjas* (estilo "warming stripes"): una franja por año, pintada según su anomalía.
-  - *Calendario*: una fila por año y una columna por día, con la anomalía de cada día.
+  - *Calendario*: una fila por año y una columna por día, con la anomalía de cada día (suavizada con un promedio móvil de 7 días; se puede desactivar).
+  - El año elegido en el selector se marca en las franjas (borde y ▼) y en el calendario (fila recuadrada).
+- **Días con lluvia, nublados y despejados**: barras por mes del período elegido, con la normal 1991–2020 de días con lluvia y un resumen del total contra lo normal.
 - **Tema**: automático, claro u oscuro (botón arriba a la derecha; se recuerda en el navegador).
 - **Enlaces para compartir**: el estado va en la URL, por ejemplo
-  `?lat=-42.9115&lon=-71.3195&lugar=Esquel&anio=2026&modelo=era5-land&hidro=1&comparar=1&temp=max`.
+  `?lat=-42.9115&lon=-71.3195&lugar=Esquel&anio=2026&modelo=era5-land&hidro=1&comparar=1&temp=max&suavizado=0`.
 
 ## Estado
 
@@ -75,20 +77,23 @@ src/
     dates.ts          utilidades de fechas
     climatology.ts    percentiles 1991–2020 (ventana ±7 días, acumuladas)
     analysis.ts       cruza el año con la climatología + resumen
-    anomalies.ts      anomalías diarias y anuales (franjas y calendario)
+    anomalies.ts      anomalías diarias y anuales, suavizado (franjas y calendario)
+    skyDays.ts        clasificación de días: lluvia, nublado, parcial, despejado
     *.test.ts         tests (Vitest)
   charts/
     charts.ts         gráficos de temperatura y lluvia (Observable Plot)
     anomalyCharts.ts  franjas y calendario de anomalías
+    skyChart.ts       barras mensuales de días de lluvia / nubes / sol
 ```
 
 Los cálculos (`src/data/`) no tocan la interfaz, así se pueden testear por separado.
 
 ## Datos
 
-- **Reanálisis**: [Open-Meteo Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api), variables diarias `temperature_2m_mean`, `temperature_2m_max`, `temperature_2m_min` y `precipitation_sum` (hasta 10 variables Open-Meteo lo cuenta como una consulta), `timezone=auto`, modelos `era5` y `era5_land`. Se hace una sola consulta por lugar desde 1991-01-01 hasta el último día disponible; con ERA5-Land o al comparar, esa consulta trae los dos modelos juntos (`models=era5,era5_land`).
+- **Reanálisis**: [Open-Meteo Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api), variables diarias `temperature_2m_mean`, `temperature_2m_max`, `temperature_2m_min`, `precipitation_sum` y `cloud_cover_mean` (hasta 10 variables Open-Meteo lo cuenta como una consulta), `timezone=auto`, modelos `era5` y `era5_land`. Se hace una sola consulta por lugar desde 1991-01-01 hasta el último día disponible; con ERA5-Land o al comparar, esa consulta trae los dos modelos juntos (`models=era5,era5_land`).
 - **Hueco hasta hoy**: el reanálisis llega con unos 5 a 7 días de atraso. Esos días se completan con la [API de pronóstico](https://open-meteo.com/en/docs) (`past_days`) y se dibujan punteados como *datos preliminares*.
-- **ERA5-Land no tiene precipitación en Open-Meteo**: la API devuelve `null` en toda la serie. La lluvia sale siempre de ERA5 (también al elegir ERA5-Land o al comparar), y la página lo aclara.
+- **ERA5-Land no tiene precipitación ni nubosidad en Open-Meteo**: la API devuelve `null` en toda la serie. La lluvia y las nubes salen siempre de ERA5 (también al elegir ERA5-Land o al comparar), y la página lo aclara.
+- **Horas de sol**: no se usan. `sunshine_duration` del reanálisis marca, por ejemplo, 71 % de horas de sol en un día con 89 % de nubosidad media; no es confiable para clasificar días.
 - Las respuestas se guardan en el navegador (12 h el reanálisis, 1 h el pronóstico). Open-Meteo cuenta una serie de 35 años como muchas consultas y limita por minuto.
 
 ## Método de climatología
@@ -100,6 +105,8 @@ Los cálculos (`src/data/`) no tocan la interfaz, así se pueden testear por sep
 - **Percentil de cada día**: porcentaje de la distribución que queda por debajo, contando la mitad de los empates.
 - **Resumen**: lluvia acumulada como % de la mediana a la misma fecha; anomalía de temperatura = promedio de (T del día − T media normal de ese día).
 - **Anomalías (mapa de colores)**: anomalía del día = valor − promedio 1991–2020 de ese día (misma ventana de ±7 días). La de cada año es el promedio de sus anomalías diarias: para un año completo equivale a (media del año − media normal), y para el año en curso compara solo los días transcurridos con lo normal para esos días, sin sesgo por la estación. La escala de colores es simétrica; en el calendario se recorta en el percentil 98 para que unos pocos días extremos no laven el resto.
+- **Suavizado del calendario**: promedio móvil centrado de 7 días sobre las anomalías diarias; en bordes o huecos usa los días disponibles si hay al menos 4, y si no deja el valor del día.
+- **Días de lluvia / nubes / sol**: cada día cae en una sola categoría. Con lluvia si precipitó ≥ 1 mm (umbral de la OMM); si no, por nubosidad media: despejado ≤ 25 % (~2 octas), nublado ≥ 75 % (~6 octas), parcial en el medio. La normal es la fracción de días de cada categoría en ese mes en 1991–2020, multiplicada por los días observados (así el mes en curso se compara justo).
 - Las funciones aceptan un mes de inicio, listas para el año hidrológico (abril–marzo).
 
 ## Dependencias

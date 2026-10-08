@@ -20,9 +20,9 @@ export const MODEL_INFO: Record<Model, { label: string; resolution: string }> = 
 };
 
 /**
- * Open-Meteo no publica precipitación para ERA5-Land: la serie llega entera en null
- * (verificado en varios puntos y períodos). Por eso la lluvia sale siempre de ERA5,
- * y la interfaz lo dice.
+ * Open-Meteo no publica precipitación ni nubosidad para ERA5-Land: esas series llegan
+ * enteras en null (verificado en varios puntos y períodos). Por eso la lluvia y las nubes
+ * salen siempre de ERA5, y la interfaz lo dice.
  */
 export const PRECIP_MODEL: Model = "era5";
 
@@ -36,6 +36,8 @@ export interface DailySeries {
   tmin: (number | null)[];
   /** Precipitación diaria (mm). */
   precip: (number | null)[];
+  /** Nubosidad media diaria (%). */
+  cloud: (number | null)[];
 }
 
 export interface PointData {
@@ -71,8 +73,12 @@ interface ApiResponse {
 
 const HOUR = 3_600_000;
 
-/** Variables diarias. Son 4: hasta 10 Open-Meteo las cuenta como una sola consulta. */
-const DAILY_VARS = "temperature_2m_mean,temperature_2m_max,temperature_2m_min,precipitation_sum";
+/**
+ * Variables diarias. Son 5: hasta 10 Open-Meteo las cuenta como una sola consulta.
+ * cloud_cover_mean no figura con ese nombre en la documentación, pero la API lo acepta (probado).
+ * No usamos sunshine_duration: en el reanálisis da muchas horas de sol en días casi cubiertos.
+ */
+const DAILY_VARS = "temperature_2m_mean,temperature_2m_max,temperature_2m_min,precipitation_sum,cloud_cover_mean";
 
 export class ApiError extends Error {}
 
@@ -116,6 +122,7 @@ function slice(s: DailySeries, from: number, to: number): DailySeries {
     tmax: s.tmax.slice(from, to),
     tmin: s.tmin.slice(from, to),
     precip: s.precip.slice(from, to),
+    cloud: s.cloud.slice(from, to),
   };
 }
 
@@ -151,6 +158,7 @@ async function fetchArchive(lat: number, lon: number, models: Model[]) {
 
   const dates = json.daily.time as string[];
   const precip = pick(json.daily, "precipitation_sum", PRECIP_MODEL, multi);
+  const cloud = pick(json.daily, "cloud_cover_mean", PRECIP_MODEL, multi);
   const temps = models.map((m) => pick(json.daily, "temperature_2m_mean", m, multi));
   const tmaxs = models.map((m) => pick(json.daily, "temperature_2m_max", m, multi));
   const tmins = models.map((m) => pick(json.daily, "temperature_2m_min", m, multi));
@@ -163,7 +171,7 @@ async function fetchArchive(lat: number, lon: number, models: Model[]) {
 
   const archive: Partial<Record<Model, DailySeries>> = {};
   models.forEach(
-    (m, i) => (archive[m] = slice({ dates, temp: temps[i], tmax: tmaxs[i], tmin: tmins[i], precip }, 0, last + 1)),
+    (m, i) => (archive[m] = slice({ dates, temp: temps[i], tmax: tmaxs[i], tmin: tmins[i], precip, cloud }, 0, last + 1)),
   );
   return { json, archive, lastArchiveDate: dates[last] };
 }
@@ -185,6 +193,7 @@ async function fetchPreliminary(lat: number, lon: number, lastArchiveDate: strin
     tmax: json.daily.temperature_2m_max as (number | null)[],
     tmin: json.daily.temperature_2m_min as (number | null)[],
     precip: json.daily.precipitation_sum as (number | null)[],
+    cloud: json.daily.cloud_cover_mean as (number | null)[],
   };
   const today = all.dates[all.dates.length - 1];
   const from = all.dates.findIndex((d) => d > lastArchiveDate);

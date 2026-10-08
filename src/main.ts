@@ -2,7 +2,9 @@ import "./style.css";
 import { fetchPointData, MODEL_INFO, MODELS, PRECIP_MODEL, seriesFor, type Model, type PointData } from "./data/openmeteo";
 import { analyzeYear, buildClimatology, type PointClimatology, type Summary } from "./data/analysis";
 import { dailyClimatology, periodYear, type Climatology } from "./data/climatology";
-import { dailyAnomalies, TEMP_VAR_INFO, yearlyAnomalies, type TempVar } from "./data/anomalies";
+import { dailyAnomalies, smoothAnomalies, TEMP_VAR_INFO, yearlyAnomalies, type TempVar } from "./data/anomalies";
+import { monthlySky, SKY_CATEGORIES, SKY_INFO, skyNormals, skyTotals, type Counts } from "./data/skyDays";
+import { skyChart } from "./charts/skyChart";
 import { calendarChart, calendarLimit, colorLegend, stripesChart, stripesLimit } from "./charts/anomalyCharts";
 import { searchPlaces, type Place } from "./data/geocoding";
 import { num, precipitationChart, temperatureChart } from "./charts/charts";
@@ -31,12 +33,16 @@ const ui = {
   rampStripes: $("ramp-stripes"),
   rampCalendar: $("ramp-calendar"),
   mapNote: $("map-note"),
+  smooth: $<HTMLInputElement>("smooth"),
+  chartSky: $("chart-sky"),
+  skySummary: $("sky-summary"),
 };
 
 let state: AppState = parseState(location.search);
 let data: PointData | null = null;
 const climCache = new Map<string, PointClimatology>();
 const varClimCache = new Map<string, Climatology>();
+let skyNormalsCache: Counts[] | null = null;
 let requestId = 0;
 let lastRender: (() => void) | null = null;
 
@@ -84,6 +90,7 @@ async function update() {
       data = d;
       climCache.clear();
       varClimCache.clear();
+      skyNormalsCache = null;
     } catch (e) {
       if (id !== requestId) return;
       setStatus(`No se pudieron bajar los datos: ${e instanceof Error ? e.message : e}`, true);
@@ -139,8 +146,17 @@ function render(d: PointData) {
     (x) => x.year >= FIRST_YEAR,
   );
   const mapYears = yearlyAnomalies(mapDays);
+  const calendarDays = state.smooth ? smoothAnomalies(mapDays) : mapDays;
+  ui.smooth.checked = state.smooth;
+
+  // Días de lluvia / nubes / sol del período elegido (lluvia y nubes: siempre ERA5).
+  const skySeries = seriesFor(d, PRECIP_MODEL);
+  skyNormalsCache ??= skyNormals(skySeries.archive);
+  const skyMonths = monthlySky(skySeries, skyNormalsCache, year, startMonth);
+  renderSkySummary(skyTotals(skyMonths), label, current);
   const yearLabel = (y: number) => periodLabel(y, state.hydro);
-  document.querySelectorAll<HTMLInputElement>("input[name=tempvar]").forEach((r) => (r.checked = r.value === v));
+  ui.smooth.addEventListener("change", () => setState({ smooth: ui.smooth.checked }));
+document.querySelectorAll<HTMLInputElement>("input[name=tempvar]").forEach((r) => (r.checked = r.value === v));
   $("stripes-title").textContent = `Franjas: anomalía de la T ${vLabel} ${state.hydro ? "por año hidrológico" : "anual"}`;
   $("calendar-title").textContent = `Calendario: anomalía de la T ${vLabel} de cada día`;
   const lastYear = mapYears[mapYears.length - 1];
@@ -162,11 +178,20 @@ function render(d: PointData) {
     ui.chartPrecip.replaceChildren(precipitationChart({ analysis, width: widthOf(ui.chartPrecip) }));
     const w = widthOf(ui.chartStripes);
     ui.rampStripes.replaceChildren(colorLegend(stripesLimit(mapYears), w));
-    ui.chartStripes.replaceChildren(stripesChart({ years: mapYears, width: w, label: yearLabel }));
-    ui.rampCalendar.replaceChildren(colorLegend(calendarLimit(mapDays), w));
+    ui.chartStripes.replaceChildren(stripesChart({ years: mapYears, width: w, label: yearLabel, selected: year }));
+    ui.rampCalendar.replaceChildren(colorLegend(calendarLimit(calendarDays), w));
     ui.chartCalendar.replaceChildren(
-      calendarChart({ days: mapDays, width: w, startMonth, label: yearLabel, variableLabel: vLabel }),
+      calendarChart({
+        days: calendarDays,
+        width: w,
+        startMonth,
+        label: yearLabel,
+        variableLabel: vLabel,
+        selected: year,
+        smoothed: state.smooth,
+      }),
     );
+    ui.chartSky.replaceChildren(skyChart({ months: skyMonths, width: widthOf(ui.chartSky) }));
   };
   lastRender();
 }
@@ -198,6 +223,18 @@ function renderSummary(s: Summary, compare: Summary | undefined, current: boolea
   }
   ui.summary.innerHTML = parts.join('<span class="sep" aria-hidden="true">·</span> ');
   ui.summary.hidden = parts.length === 0;
+}
+
+/** "En 2026 (a la fecha): 120 con lluvia (normal 105) · …". Números y palabras, no solo colores. */
+function renderSkySummary(t: ReturnType<typeof skyTotals>, label: string, current: boolean) {
+  if (t.days === 0) {
+    ui.skySummary.textContent = "";
+    return;
+  }
+  const parts = SKY_CATEGORIES.map(
+    (c) => `<strong>${t.counts[c]}</strong> ${SKY_INFO[c].short} <span class="detail">(normal ${num(t.normal[c], 0)})</span>`,
+  );
+  ui.skySummary.innerHTML = `${current ? `${label} a la fecha` : label} (${t.days} días): ` + parts.join(" · ");
 }
 
 function renderSource(d: PointData, years: number) {

@@ -41,6 +41,8 @@ interface StripesOptions {
   years: YearAnomaly[];
   width: number;
   label: (year: number) => string;
+  /** Año elegido en el selector: se marca con un borde y un ▼ arriba. */
+  selected?: number;
 }
 
 export function stripesLimit(years: YearAnomaly[]) {
@@ -52,13 +54,16 @@ export function stripesLimit(years: YearAnomaly[]) {
 }
 
 /** Una franja por año, pintada según su anomalía. Como la imagen clásica de Ed Hawkins. */
-export function stripesChart({ years, width, label }: StripesOptions) {
+export function stripesChart({ years, width, label, selected }: StripesOptions) {
   const limit = stripesLimit(years);
   const step = width < 500 ? 10 : 5;
   const partial = years.filter((y) => !y.complete);
+  const sel = years.some((y) => y.year === selected) ? [selected!] : [];
+  const ink = token("--text-primary");
   return Plot.plot({
     width,
-    height: width < 500 ? 120 : 150,
+    height: width < 500 ? 134 : 164,
+    marginTop: 16,
     marginLeft: 8,
     marginRight: 8,
     marginBottom: 26,
@@ -67,7 +72,7 @@ export function stripesChart({ years, width, label }: StripesOptions) {
       type: "band",
       domain: years.map((y) => y.year),
       padding: 0,
-      tickFormat: (y: number) => (y % step === 0 ? String(y) : ""),
+      tickFormat: (y: number) => (y === selected || (y % step === 0 && Math.abs(y - (selected ?? -99)) > 2) ? String(y) : ""),
       tickSize: 0,
       label: null,
     },
@@ -75,7 +80,10 @@ export function stripesChart({ years, width, label }: StripesOptions) {
     marks: [
       Plot.cell(years, { x: "year", fill: "anomaly", shapeRendering: "crispEdges" }),
       // El año en curso está incompleto: lo marcamos con un borde punteado (y lo dice el tooltip).
-      Plot.cell(partial, { x: "year", fill: "none", stroke: token("--text-primary"), strokeDasharray: "2 2", inset: 1 }),
+      Plot.cell(partial, { x: "year", fill: "none", stroke: ink, strokeDasharray: "2 2", inset: 1 }),
+      // Año elegido: borde grueso + flecha arriba (forma, no solo color).
+      Plot.cell(sel, { x: (d: number) => d, fill: "none", stroke: ink, strokeWidth: 2 }),
+      Plot.text(sel, { x: (d: number) => d, text: () => "▼", frameAnchor: "top", dy: -9, fill: ink, fontSize: 10 }),
       Plot.tip(
         years,
         Plot.pointerX({
@@ -92,6 +100,9 @@ export function stripesChart({ years, width, label }: StripesOptions) {
 
 interface CalendarOptions {
   days: DayAnomaly[];
+  /** Año elegido: su fila se recuadra. */
+  selected?: number;
+  smoothed?: boolean;
   width: number;
   startMonth: number;
   label: (year: number) => string;
@@ -103,7 +114,7 @@ export function calendarLimit(days: DayAnomaly[]) {
 }
 
 /** Calendario: una fila por año, una columna por día; el color es la anomalía de ese día. */
-export function calendarChart({ days, width, startMonth, label, variableLabel }: CalendarOptions) {
+export function calendarChart({ days, width, startMonth, label, variableLabel, selected, smoothed }: CalendarOptions) {
   const limit = calendarLimit(days);
   const years = [...new Set(days.map((d) => d.year))].sort((a, b) => b - a);
   const rowHeight = width < 500 ? 7 : 9;
@@ -136,13 +147,22 @@ export function calendarChart({ days, width, startMonth, label, variableLabel }:
       type: "band",
       domain: years,
       padding: 0,
-      tickFormat: (y: number) => (y % (width < 500 ? 5 : 2) === 0 ? label(y) : ""),
+      tickFormat: (y: number) =>
+        y === selected || (y % (width < 500 ? 5 : 2) === 0 && Math.abs(y - (selected ?? -99)) > 1) ? label(y) : "",
       tickSize: 0,
       label: null,
     },
     color: divergingColor(limit),
     marks: [
       Plot.barX(cells, { x1: "x1", x2: "x2", y: "year", fill: "anomaly", inset: 0, shapeRendering: "crispEdges" }),
+      Plot.barX(years.includes(selected!) ? [selected!] : [], {
+        x1: () => first,
+        x2: () => last,
+        y: (d: number) => d,
+        fill: "none",
+        stroke: token("--text-primary"),
+        strokeWidth: 1.5,
+      }),
       Plot.tip(
         cells,
         Plot.pointer({
@@ -151,7 +171,7 @@ export function calendarChart({ days, width, startMonth, label, variableLabel }:
           fontSize: 12,
           title: (d: (typeof cells)[number]) =>
             `${dayFmt.format(new Date(d.iso + "T00:00:00Z"))}\nT ${variableLabel}: ${num(d.value)} °C` +
-            `\nAnomalía: ${signed(d.anomaly)}` +
+            `\nAnomalía${smoothed ? " (prom. 7 días)" : ""}: ${signed(d.anomaly)}` +
             (d.preliminary ? "\nDato preliminar (pronóstico)" : ""),
         }),
       ),

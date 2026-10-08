@@ -2,6 +2,7 @@
 // Funciones puras: no tocan la interfaz ni la red.
 
 import { doy365, periodIndex, periodYear, quantile, type Climatology } from "./climatology";
+import { addDays } from "./dates";
 import type { DailySeries } from "./openmeteo";
 
 export type TempVar = "mean" | "max" | "min";
@@ -102,4 +103,27 @@ export function referenceDate(iso: string, startMonth = 1): Date {
   const month = Number(iso.slice(5, 7));
   const refYear = startMonth > 1 && month >= startMonth ? 1999 : 2000;
   return new Date(`${refYear}${iso.slice(4)}T00:00:00Z`);
+}
+
+/**
+ * Promedio móvil centrado de las anomalías (por defecto 7 días: el día y 3 a cada lado).
+ * Usa solo días consecutivos que existan; si en la ventana hay menos de la mitad más uno
+ * de los días, deja el valor sin suavizar para no inventar nada en los bordes o huecos.
+ */
+export function smoothAnomalies(days: DayAnomaly[], window = 7): DayAnomaly[] {
+  const half = Math.floor(window / 2);
+  const minCount = half + 1;
+  const byIso = new Map(days.map((d) => [d.iso, d.anomaly]));
+  return days.map((d) => {
+    let sum = 0;
+    let n = 0;
+    for (let k = -half; k <= half; k++) {
+      const v = byIso.get(addDays(d.iso, k));
+      if (v != null) {
+        sum += v;
+        n++;
+      }
+    }
+    return n >= minCount ? { ...d, anomaly: sum / n } : d;
+  });
 }

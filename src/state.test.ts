@@ -7,7 +7,7 @@ describe("parseState", () => {
   });
 
   it("lee todos los parámetros", () => {
-    expect(parseState("?lat=-42.91&lon=-71.32&lugar=Esquel&anio=2015&modelo=era5&hidro=1&comparar=1&temp=min")).toEqual({
+    expect(parseState("?lat=-42.91&lon=-71.32&lugar=Esquel&anio=2015&modelo=era5&hidro=1&comparar=1&temp=min&suavizado=0")).toEqual({
       lat: -42.91,
       lon: -71.32,
       name: "Esquel",
@@ -16,6 +16,7 @@ describe("parseState", () => {
       hydro: true,
       compare: true,
       tempVar: "min",
+      smooth: false,
     });
   });
 
@@ -49,7 +50,7 @@ describe("variable del mapa de colores", () => {
 
 describe("serializeState", () => {
   it("ida y vuelta conserva el estado", () => {
-    const s = { ...DEFAULT_STATE, name: "San Martín de los Andes", year: 2020, hydro: true, compare: true, tempVar: "max" as const };
+    const s = { ...DEFAULT_STATE, name: "San Martín de los Andes", year: 2020, hydro: true, compare: true, tempVar: "max" as const, smooth: false };
     expect(parseState(serializeState(s))).toEqual(s);
   });
 
